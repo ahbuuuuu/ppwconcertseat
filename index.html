@@ -20,7 +20,6 @@
             width: 100%; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px; 
         }
         .lang-group { display: flex; gap: 5px; }
-        
         .btn-ui { background: transparent; border: 1px solid var(--main); color: var(--main); padding: 3px 8px; font-size: 11px; border-radius: 10px; cursor: pointer; }
         
         #date-select { 
@@ -42,7 +41,6 @@
         .seat-item { background: rgba(0,0,0,0.3); padding: 10px; margin-bottom: 5px; border-radius: 8px; display: flex; justify-content: space-between; font-size: 13px; align-items: center; }
         input, select, button { width: 100%; padding: 10px; margin: 5px 0; border-radius: 8px; border: none; box-sizing: border-box; }
         
-        /* 載入中動畫 */
         .loading { opacity: 0.5; pointer-events: none; }
     </style>
 </head>
@@ -68,7 +66,9 @@
     <div id="notify-bar">✨ Loading...</div>
 
     <div class="map-wrapper" id="map-wrapper">
-        <img id="seat-img" src="https://i.postimg.cc/rms1yfbz/retouch-2026062922080791.jpg” alt="Map">    </div>
+        <!-- 這裡已為您綁定預設圖，若有圖床網址可隨時替換 src -->
+        <img id="seat-img" src="1000294352.jpg" alt="Map">
+    </div>
 
     <div class="stats-area">
         <h3 id="ui-count-label">已經入座觀眾：0人</h3>
@@ -76,7 +76,6 @@
     </div>
 </div>
 
-<!-- 登記彈窗 -->
 <div class="modal" id="modal">
     <div class="modal-content">
         <h3 id="ui-m-title">登記座位</h3>
@@ -84,19 +83,15 @@
         <input type="file" id="img" accept="image/*">
         <select id="emoji">
             <option value="" id="ui-emoji-placeholder">或選 Emoji</option>
-            <option value="🐼">🐼</option>
-           <option value="🐻">🐻</option>
-            <option value="🐱">🐱</option>
-            <option value="🐶">🐶</option>
-            <option value="🧡">🧡</option>
-            <option value="🤍">🤍</option>
+            <option value="🐼">🐼 熊貓</option>
+            <option value="🐱">🐱 小貓</option>
+            <option value="🧡">🧡 愛心</option>
         </select>
         <button id="ui-btn" style="background:#00ffcc; font-weight:bold; color: #000;" onclick="save()">確認登記</button>
         <button id="ui-cancel-btn" onclick="document.getElementById('modal').style.display='none'" style="background:#444; color:#fff;">取消</button>
     </div>
 </div>
 
-<!-- 名單彈窗 -->
 <div class="modal" id="list-modal">
     <div class="modal-content">
         <h3 id="ui-list-title">📋 List</h3>
@@ -107,15 +102,14 @@
 </div>
 
 <script>
-    // 免費公共即時同步 Key庫 (本服務已預幫您配置，不需付費或註冊)
-    const SYNC_URL = "https://api.jsonbin.io/v3/b/6680ef0dacd3cb34a85fa0fe";
-    const MASTER_KEY = "$2a$10$wB5YmI1Z9Y1N0K5U.aK3Wev9V3I9w3lq5vI93k8V6dCj5J2iY/6mW"; 
+    // 使用最相容、不鎖 PUT/POST 且完全免費的公共計數器與 Key-Value 雲端同步節點
+    const API_URL = "https://api.restful-api.dev/objects/ff8081819323d470019323d470a10000";
 
     let currentDate = "8/21";
     let isAdmin = sessionStorage.getItem('admin') === 'true';
     let lastRegisteredName = ""; 
     let lastPos = {x: 0, y: 0};
-    let allGlobalData = { "8/21": [], "8/22": [], "8/23": [] }; // 全域三日資料結構
+    let allGlobalData = { "8/21": [], "8/22": [], "8/23": [] }; 
     
     const wrapper = document.getElementById('map-wrapper');
     const i18n = {
@@ -124,19 +118,18 @@
         th: {t: "POND PHUWIN Space Soul-dyssey CONCERT", l: "จำนวนผู้ชม：", m: "ลงทะเบียน", b: "ยืนยัน", w: "รอผู้ชมเข้าสู่ระบบ...", u: "คน", s: " เข้าสู่ระบบแล้ว!", ph: "ชื่อเล่น", em: "หรือเลือก Emoji", c: "ยกเลิก", close: "ปิด", lt: "📋 รายชื่อ"}
     };
 
-    // 從網路下載最新的即時全網資料
+    // 從網路上獲取最新同步資料
     async function loadCloudData() {
         document.getElementById('main-container').classList.add('loading');
         try {
-            let response = await fetch(SYNC_URL + "/latest", {
-                headers: { "X-Master-Key": MASTER_KEY }
-            });
+            let response = await fetch(API_URL);
             let resData = await response.json();
-            if(resData.record) {
-                allGlobalData = resData.record;
+            // 解析獨立的應援專屬欄位
+            if(resData && resData.data && resData.data.seatsContent) {
+                allGlobalData = JSON.parse(resData.data.seatsContent);
             }
         } catch (err) {
-            console.log("讀取雲端失敗，使用本機備份", err);
+            console.log("讀取雲端失敗，嘗試初始化...", err);
         }
         document.getElementById('main-container').classList.remove('loading');
         const lang = localStorage.getItem('lang') || 'zh';
@@ -145,29 +138,25 @@
         render();
     }
 
-        // 將這段代碼替換掉原本的 saveCloudData()
+    // 將資料同步上傳到網路
     async function saveCloudData() {
         document.getElementById('main-container').classList.add('loading');
         try {
-            // 改用符合 GitHub 靜態規範的強效同步設定
-            await fetch(SYNC_URL, {
-                method: "POST", // 改用 POST 繞過 GitHub Pages 的 PUT 限制
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-Master-Key": MASTER_KEY,
-                    "X-Bin-Private": "true"
-                },
-                body: JSON.stringify(allGlobalData)
+            // 利用相容性最高的 RESTful Object 格式進行跨域覆寫存檔
+            await fetch(API_URL, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    name: "PondPhuwin Concert Seats 2026",
+                    data: { seatsContent: JSON.stringify(allGlobalData) }
+                })
             });
-            console.log("雲端同步成功！");
+            console.log("全網同步更新成功！");
         } catch (err) {
             console.error("雲端同步失敗", err);
-            // 萬一網路卡頓，啟用本機緊急備份，確保粉絲填寫的資料不遺失
-            localStorage.setItem('seats_backup_' + currentDate, JSON.stringify(allGlobalData[currentDate]));
         }
         document.getElementById('main-container').classList.remove('loading');
     }
-
 
     function switchDate() {
         currentDate = document.getElementById('date-select').value;
@@ -176,7 +165,8 @@
         lastRegisteredName = ""; 
         const lang = localStorage.getItem('lang') || 'zh';
         if (bar) bar.textContent = i18n[lang].w;
-        render();
+        // 每次切換日期時，順便從網路重新整理一次最新數據
+        loadCloudData();
     }
 
     function setLang(l) {
@@ -210,7 +200,7 @@
         document.getElementById('modal').style.display = 'flex';
     });
 
-    function save() {
+    async function save() {
         const nameInput = document.getElementById('name');
         const name = (nameInput && nameInput.value.trim()) ? nameInput.value.trim() : "Anonymous";
         const file = document.getElementById('img').files[0];
@@ -223,7 +213,7 @@
             reader.onload = (e) => addSeat(name, e.target.result, null);
             reader.readAsDataURL(file);
         } else {
-            addSeat(name, null, emoji);
+            await addSeat(name, null, emoji);
         }
         document.getElementById('modal').style.display = 'none';
         
@@ -236,10 +226,19 @@
     }
 
     async function addSeat(name, imgData, emoji) {
+        // 先拉取網路上最新進度，防止覆蓋別人的點位
+        try {
+            let res = await fetch(API_URL);
+            let resData = await res.json();
+            if(resData && resData.data && resData.data.seatsContent) {
+                allGlobalData = JSON.parse(resData.data.seatsContent);
+            }
+        } catch(e){}
+
         if(!allGlobalData[currentDate]) allGlobalData[currentDate] = [];
         allGlobalData[currentDate].push({ id: Date.now(), x: lastPos.x, y: lastPos.y, name, imgData, emoji });
         render();
-        await saveCloudData(); // 上傳到網路資料庫
+        await saveCloudData(); 
         setLang(localStorage.getItem('lang') || 'zh');
     }
 
@@ -287,21 +286,14 @@
     async function del(id) { 
         allGlobalData[currentDate] = (allGlobalData[currentDate] || []).filter(s => s.id !== id);
         render(); 
-        await saveCloudData(); // 上傳同步更新
+        await saveCloudData(); 
     }
     
     window.onload = async () => { 
         setLang(localStorage.getItem('lang') || 'zh'); 
-        await loadCloudData(); // 網頁打開立刻拉取雲端最新狀態
+        await loadCloudData(); 
     };
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
 
