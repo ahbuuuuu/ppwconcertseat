@@ -123,41 +123,49 @@
     };
 
     async function loadCloudData() {
-        if(GAS_URL === "請替換成你的Google_GAS網址") {
-            document.getElementById('notify-bar').textContent = "⚠️ 請先配置 Google GAS 網址";
-            return;
-        }
-        document.getElementById('main-container').classList.add('loading');
-        try {
-            let response = await fetch(GAS_URL);
-            if (response.ok) {
-                allGlobalData = await response.json();
+    if(GAS_URL === "https://script.google.com/macros/s/AKfycbxUrIsZeWX9RMhjr8YLkqbEg6Nw3tjEvjMq_Up7vkSZ8QerJ-aPkRyVXW_faqno-gOFag/exec") return;
+    document.getElementById('main-container').classList.add('loading');
+    try {
+        // 核心修改：網址後面加上 ?action=read
+        let response = await fetch(GAS_URL + "?action=read");
+        if (response.ok) {
+            let text = await response.text();
+            if(text && text.trim() !== "") {
+                allGlobalData = JSON.parse(text);
             }
-        } catch (err) {
-            console.log("讀取雲端失敗", err);
         }
-        document.getElementById('main-container').classList.remove('loading');
-        const lang = localStorage.getItem('lang') || 'zh';
-        const bar = document.getElementById('notify-bar');
-        if(bar && bar.dataset.isUser !== "true") bar.textContent = i18n[lang].w;
-        render();
+    } catch (err) {
+        console.log("讀取雲端失敗", err);
     }
+    document.getElementById('main-container').classList.remove('loading');
+    const lang = localStorage.getItem('lang') || 'zh';
+    const bar = document.getElementById('notify-bar');
+    if(bar && bar.dataset.isUser !== "true") bar.textContent = i18n[lang].w;
+    render();
+}
 
-    async function saveCloudData() {
-        document.getElementById('main-container').classList.add('loading');
-        try {
-            await fetch(GAS_URL, {
-                method: "POST",
-                body: JSON.stringify(allGlobalData)
-            });
-            console.log("Google雲端同步成功！");
-        } catch (err) {
-            console.error("雲端同步失敗", err);
-        }
-        document.getElementById('main-container').classList.remove('loading');
+async function saveCloudData() {
+    document.getElementById('main-container').classList.add('loading');
+    try {
+        // 核心修改：加上 mode: "no-cors" 與 text/plain，直接衝破 Google 阻擋
+        await fetch(GAS_URL, {
+            method: "POST",
+            mode: "no-cors", 
+            headers: { "Content-Type": "text/plain" },
+            body: JSON.stringify(allGlobalData)
+        });
+        console.log("資料已成功送往 Google 雲端庫！");
+    } catch (err) {
+        console.error("雲端同步失敗", err);
     }
+    // 延遲 800 毫秒重新讀取雲端，強迫畫面刷新對齊
+    setTimeout(async () => {
+        document.getElementById('main-container').classList.remove('loading');
+        await loadCloudData();
+    }, 800);
+}
 
-    function switchDate() {
+        function switchDate() {
         currentDate = document.getElementById('date-select').value;
         const bar = document.getElementById('notify-bar');
         if (bar) bar.dataset.isUser = "false"; 
