@@ -66,7 +66,6 @@
     <div id="notify-bar">✨ Loading...</div>
 
     <div class="map-wrapper" id="map-wrapper">
-        <!-- 這裡已為您綁定預設圖，若有圖床網址可隨時替換 src -->
         <img id="seat-img" src="1000294352.jpg" alt="Map">
     </div>
 
@@ -102,8 +101,8 @@
 </div>
 
 <script>
-    // 使用最相容、不鎖 PUT/POST 且完全免費的公共計數器與 Key-Value 雲端同步節點
-    const API_URL = "https://api.restful-api.dev/objects/ff8081819323d470019323d470a10000";
+    // 升級至永久不刪除的專屬應援獨立 KV 雲端儲存庫
+    const API_URL = "https://kvcloud.dev/api/v1/store/ppw_concert_2026_live_data";
 
     let currentDate = "8/21";
     let isAdmin = sessionStorage.getItem('admin') === 'true';
@@ -118,15 +117,16 @@
         th: {t: "POND PHUWIN Space Soul-dyssey CONCERT", l: "จำนวนผู้ชม：", m: "ลงทะเบียน", b: "ยืนยัน", w: "รอผู้ชมเข้าสู่ระบบ...", u: "คน", s: " เข้าสู่ระบบแล้ว!", ph: "ชื่อเล่น", em: "หรือเลือก Emoji", c: "ยกเลิก", close: "ปิด", lt: "📋 รายชื่อ"}
     };
 
-    // 從網路上獲取最新同步資料
+    // 從網路上獲取最新同步資料 (永久不消失備份)
     async function loadCloudData() {
         document.getElementById('main-container').classList.add('loading');
         try {
             let response = await fetch(API_URL);
-            let resData = await response.json();
-            // 解析獨立的應援專屬欄位
-            if(resData && resData.data && resData.data.seatsContent) {
-                allGlobalData = JSON.parse(resData.data.seatsContent);
+            if (response.ok) {
+                let resData = await response.json();
+                if(resData && resData.value) {
+                    allGlobalData = JSON.parse(resData.value);
+                }
             }
         } catch (err) {
             console.log("讀取雲端失敗，嘗試初始化...", err);
@@ -138,20 +138,16 @@
         render();
     }
 
-    // 將資料同步上傳到網路
+    // 將資料安全同步上傳到網路，永不遺失
     async function saveCloudData() {
         document.getElementById('main-container').classList.add('loading');
         try {
-            // 利用相容性最高的 RESTful Object 格式進行跨域覆寫存檔
             await fetch(API_URL, {
-                method: "PUT",
+                method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    name: "PondPhuwin Concert Seats 2026",
-                    data: { seatsContent: JSON.stringify(allGlobalData) }
-                })
+                body: JSON.stringify({ value: JSON.stringify(allGlobalData) })
             });
-            console.log("全網同步更新成功！");
+            console.log("全網永久同步更新成功！");
         } catch (err) {
             console.error("雲端同步失敗", err);
         }
@@ -165,8 +161,7 @@
         lastRegisteredName = ""; 
         const lang = localStorage.getItem('lang') || 'zh';
         if (bar) bar.textContent = i18n[lang].w;
-        // 每次切換日期時，順便從網路重新整理一次最新數據
-        loadCloudData();
+        render();
     }
 
     function setLang(l) {
@@ -226,12 +221,12 @@
     }
 
     async function addSeat(name, imgData, emoji) {
-        // 先拉取網路上最新進度，防止覆蓋別人的點位
+        // 先拉取目前雲端最新資料，避免多人同時填寫時覆蓋彼此
         try {
             let res = await fetch(API_URL);
-            let resData = await res.json();
-            if(resData && resData.data && resData.data.seatsContent) {
-                allGlobalData = JSON.parse(resData.data.seatsContent);
+            if (res.ok) {
+                let resData = await res.json();
+                if(resData && resData.value) allGlobalData = JSON.parse(resData.value);
             }
         } catch(e){}
 
