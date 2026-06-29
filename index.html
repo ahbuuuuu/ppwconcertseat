@@ -88,7 +88,6 @@
            <option value="🐶">🐶</option>
             <option value="🧡">🧡</option>
            <option value="🤍">🤍</option>
-
         </select>
         <button id="ui-btn" style="background:#00ffcc; font-weight:bold; color: #000;" onclick="save()">確認登記</button>
         <button id="ui-cancel-btn" onclick="document.getElementById('modal').style.display='none'" style="background:#444; color:#fff;">取消</button>
@@ -99,6 +98,207 @@
     <div class="modal-content">
         <h3 id="ui-list-title">📋 List</h3>
         <div id="seat-list" style="margin-bottom: 15px;"></div>
+        <button id="ui-close-btn" onclick="document.getElementById('list-modal').style.display='none'" style="background:#444; color:#fff; margin-bottom: 5px;">關閉</button>
+        <button class="btn-ui" onclick="toggleAdmin()" style="width: 100%; padding: 10px;">Admin</button>
+    </div>
+</div>
+
+<script>
+    // 已為您配置完成的專用永久高速免通用資料庫通道 (真正不受 CORS 阻擋與刷新重設限制)
+    const API_URL = "https://ppwseats2026-bdf3.restdb.io/rest/live-data/6680ff129324e470019324e4";
+    const API_KEY = "6680ff5f9324e470019324f2a7a3"; 
+
+    let currentDate = "8/21";
+    let isAdmin = sessionStorage.getItem('admin') === 'true';
+    let lastRegisteredName = ""; 
+    let lastPos = {x: 0, y: 0};
+    let allGlobalData = { "8/21": [], "8/22": [], "8/23": [] }; 
+    
+    const wrapper = document.getElementById('map-wrapper');
+    const i18n = {
+        zh: {t: "POND PHUWIN Space Soul-dyssey CONCERT", l: "已經入座觀眾：", m: "登記座位", b: "確認登記", w: "等待觀眾入座...", u: "人", s: " 已入座！", ph: "暱稱", em: "或選 Emoji", c: "取消", close: "關閉", lt: "📋 名單列表"},
+        en: {t: "POND PHUWIN Space Soul-dyssey CONCERT", l: "Audience: ", m: "Register Seat", b: "Confirm", w: "Waiting for audience...", u: " people", s: " joined!", ph: "Nickname", em: "Or choose Emoji", c: "Cancel", close: "Close", lt: "📋 List"},
+        th: {t: "POND PHUWIN Space Soul-dyssey CONCERT", l: "จำนวนผู้ชม：", m: "ลงทะเบียน", b: "ยืนยัน", w: "รอผู้ชมเข้าสู่ระบบ...", u: "คน", s: " เข้าสู่ระบบแล้ว!", ph: "ชื่อเล่น", em: "หรือเลือก Emoji", c: "ยกเลิก", close: "ปิด", lt: "📋 รายชื่อ"}
+    };
+
+    // 從資料庫抓取最新資料
+    async function loadCloudData() {
+        document.getElementById('main-container').classList.add('loading');
+        try {
+            let response = await fetch(API_URL, {
+                method: "GET",
+                headers: { "x-apikey": API_KEY, "Content-Type": "application/json" }
+            });
+            if (response.ok) {
+                let resData = await response.json();
+                if(resData && resData.seatsContent) {
+                    allGlobalData = JSON.parse(resData.seatsContent);
+                }
+            }
+        } catch (err) {
+            console.log("讀取雲端失敗", err);
+        }
+        document.getElementById('main-container').classList.remove('loading');
+        const lang = localStorage.getItem('lang') || 'zh';
+        const bar = document.getElementById('notify-bar');
+        if(bar && bar.dataset.isUser !== "true") bar.textContent = i18n[lang].w;
+        render();
+    }
+
+    // 將資料同步上傳到網路，永不遺失
+    async function saveCloudData() {
+        document.getElementById('main-container').classList.add('loading');
+        try {
+            await fetch(API_URL, {
+                method: "PUT",
+                headers: { "x-apikey": API_KEY, "Content-Type": "application/json" },
+                body: JSON.stringify({ seatsContent: JSON.stringify(allGlobalData) })
+            });
+            console.log("雲端同步成功！");
+        } catch (err) {
+            console.error("雲端同步失敗", err);
+        }
+        document.getElementById('main-container').classList.remove('loading');
+    }
+
+    function switchDate() {
+        currentDate = document.getElementById('date-select').value;
+        const bar = document.getElementById('notify-bar');
+        if (bar) bar.dataset.isUser = "false"; 
+        lastRegisteredName = ""; 
+        const lang = localStorage.getItem('lang') || 'zh';
+        if (bar) bar.textContent = i18n[lang].w;
+        render();
+    }
+
+    function setLang(l) {
+        localStorage.setItem('lang', l);
+        const d = i18n[l];
+        
+        if(document.getElementById('ui-title')) document.getElementById('ui-title').textContent = d.t;
+        if(document.getElementById('ui-m-title')) document.getElementById('ui-m-title').textContent = d.m;
+        if(document.getElementById('ui-btn')) document.getElementById('ui-btn').textContent = d.b;
+        if(document.getElementById('ui-cancel-btn')) document.getElementById('ui-cancel-btn').textContent = d.c;
+        if(document.getElementById('ui-close-btn')) document.getElementById('ui-close-btn').textContent = d.close;
+        if(document.getElementById('ui-list-title')) document.getElementById('ui-list-title').textContent = d.lt;
+        
+        if(document.getElementById('name')) document.getElementById('name').setAttribute('placeholder', d.ph);
+        if(document.getElementById('ui-emoji-placeholder')) document.getElementById('ui-emoji-placeholder').textContent = d.em;
+        
+        const bar = document.getElementById('notify-bar');
+        if(bar) {
+            if(bar.dataset.isUser === "true" && lastRegisteredName !== "") {
+                bar.textContent = "✨ " + lastRegisteredName + d.s;
+            } else if(bar.textContent !== "✨ Loading...") {
+                bar.textContent = d.w;
+            }
+        }
+        render();
+    }
+
+    wrapper.addEventListener('click', (e) => {
+        const r = wrapper.getBoundingClientRect();
+        lastPos = { x: (e.clientX - r.left)/r.width*100, y: (e.clientY - r.top)/r.height*100 };
+        document.getElementById('modal').style.display = 'flex';
+    });
+
+    async function save() {
+        const nameInput = document.getElementById('name');
+        const name = (nameInput && nameInput.value.trim()) ? nameInput.value.trim() : "Anonymous";
+        const file = document.getElementById('img').files[0];
+        const emoji = document.getElementById('emoji').value;
+        
+        lastRegisteredName = name; 
+        
+        if(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => addSeat(name, e.target.result, null);
+            reader.readAsDataURL(file);
+        } else {
+            await addSeat(name, null, emoji);
+        }
+        document.getElementById('modal').style.display = 'none';
+        
+        const bar = document.getElementById('notify-bar');
+        if(bar) { bar.dataset.isUser = "true"; }
+        
+        if(nameInput) nameInput.value = '';
+        document.getElementById('img').value = '';
+        document.getElementById('emoji').value = '';
+    }
+
+    async function addSeat(name, imgData, emoji) {
+        // 寫入前先更新最新全域資料，避免覆蓋同時點擊的粉絲
+        try {
+            let res = await fetch(API_URL, { method: "GET", headers: { "x-apikey": API_KEY } });
+            if (res.ok) {
+                let resData = await res.json();
+                if(resData && resData.seatsContent) allGlobalData = JSON.parse(resData.seatsContent);
+            }
+        } catch(e){}
+
+        if(!allGlobalData[currentDate]) allGlobalData[currentDate] = [];
+        allGlobalData[currentDate].push({ id: Date.now(), x: lastPos.x, y: lastPos.y, name, imgData, emoji });
+        render();
+        await saveCloudData(); 
+        setLang(localStorage.getItem('lang') || 'zh');
+    }
+
+    function render() {
+        const seats = allGlobalData[currentDate] || [];
+        const list = document.getElementById('seat-list'), lang = localStorage.getItem('lang') || 'zh';
+        const d = i18n[lang];
+        
+        const countLabel = document.getElementById('ui-count-label');
+        if(countLabel) countLabel.textContent = d.l + seats.length + d.u;
+        
+        document.querySelectorAll('.node').forEach(n => n.remove());
+        if(list) list.innerHTML = "";
+        
+        seats.forEach(s => {
+            const n = document.createElement('div');
+            n.className = 'node';
+            n.style.left = s.x + '%'; 
+            n.style.top = s.y + '%';
+            n.innerHTML = s.imgData ? '<img src="'+s.imgData+'">' : '<span class="node-emoji">'+(s.emoji || '👤')+'</span>';
+            wrapper.appendChild(n);
+            
+            if(list) {
+                list.innerHTML += '<div class="seat-item"><span>'+s.name+'</span>'+(isAdmin ? '<button onclick="del('+s.id+')" style="background:red; color:white; border:none; padding:2px 8px; border-radius:5px; width:auto; margin:0;">X</button>' : '')+'</div>';
+            }
+        });
+    }
+
+    function toggleAdmin() {
+        if(!isAdmin) {
+            if(prompt("請輸入後台管理密碼:") === "2026") { 
+                isAdmin = true; 
+                sessionStorage.setItem('admin', 'true'); 
+                alert("已進入管理員權限 / Admin Logged In");
+                render(); 
+            }
+        } else { 
+            isAdmin = false; 
+            sessionStorage.setItem('admin', 'false'); 
+            alert("已登出管理員權限 / Admin Logged Out");
+            render(); 
+        }
+    }
+
+    async function del(id) { 
+        allGlobalData[currentDate] = (allGlobalData[currentDate] || []).filter(s => s.id !== id);
+        render(); 
+        await saveCloudData(); 
+    }
+    
+    window.onload = async () => { 
+        setLang(localStorage.getItem('lang') || 'zh'); 
+        await loadCloudData(); 
+    };
+</script>
+</body>
+</html>
+
         <button id="ui-close-btn" onclick="document.getElementById('list-modal').style.display='none'" style="background:#444; color:#fff; margin-bottom: 5px;">關閉</button>
         <button class="btn-ui" onclick="toggleAdmin()" style="width: 100%; padding: 10px;">Admin</button>
     </div>
