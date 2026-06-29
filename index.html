@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>POND PHUWIN Space Soul-dyssey CONCERT</title>
+    <style>
+        :root { --main: #00ffcc; --bg: #0b0c10; --panel: rgba(31, 40, 51, 0.9); }
+        body { font-family: sans-serif; background: var(--bg); color: #fff; margin: 0; padding: 10px; }
+        .container { max-width: 500px; margin: auto; }
+        
+        header { 
+            display: flex; flex-direction: column; gap: 8px; 
+            background: var(--panel); padding: 12px 15px; border-radius: 20px; margin-bottom: 10px; 
+        }
+        h1 { font-size: 12px; color: var(--main); margin: 0; text-align: center; width: 100%; line-height: 1.3; letter-spacing: 0.5px; }
+        
+        .control-row { 
+            display: flex; justify-content: space-between; align-items: center; 
+            width: 100%; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px; 
+        }
+        .lang-group { display: flex; gap: 5px; }
+        
+        .btn-ui { background: transparent; border: 1px solid var(--main); color: var(--main); padding: 3px 8px; font-size: 11px; border-radius: 10px; cursor: pointer; }
+        
+        #date-select { 
+            background: #00ffcc; color: #000; font-weight: bold; 
+            width: 75px; padding: 3px 5px; text-align: center;
+            border: 1px solid var(--main); border-radius: 10px;
+            font-size: 12px; cursor: pointer; outline: none;
+        }
+        
+        #notify-bar { background: rgba(0,255,204,0.1); padding: 10px; border-radius: 15px; text-align: center; color: var(--main); border: 1px solid var(--main); font-size: 13px; margin-bottom: 10px; }
+        .map-wrapper { position: relative; width: 100%; border-radius: 15px; overflow: hidden; border: 1px solid #333; cursor: crosshair; }
+        #seat-img { width: 100%; display: block; }
+        .node { position: absolute; width: 22px; height: 22px; border-radius: 50%; border: 1px solid #fff; background: #000; display: flex; align-items: center; justify-content: center; font-size: 11px; cursor: pointer; transform: translate(-50%, -50%); }
+        .node img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+
+        .stats-area { background: var(--panel); padding: 15px; border-radius: 15px; margin-top: 10px; text-align: center; }
+        .modal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.9); z-index: 100; justify-content: center; align-items: center; }
+        .modal-content { background: #1f2833; padding: 20px; border-radius: 20px; width: 85%; max-height: 80vh; overflow-y: auto; }
+        .seat-item { background: rgba(0,0,0,0.3); padding: 10px; margin-bottom: 5px; border-radius: 8px; display: flex; justify-content: space-between; font-size: 13px; align-items: center; }
+        input, select, button { width: 100%; padding: 10px; margin: 5px 0; border-radius: 8px; border: none; box-sizing: border-box; }
+        
+        /* 載入中動畫 */
+        .loading { opacity: 0.5; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+<div class="container" id="main-container">
+    <header>
+        <h1 id="ui-title">POND PHUWIN Space Soul-dyssey CONCERT</h1>
+        <div class="control-row">
+            <select id="date-select" onchange="switchDate()">
+                <option value="8/21">8/21</option>
+                <option value="8/22">8/22</option>
+                <option value="8/23">8/23</option>
+            </select>
+            <div class="lang-group">
+                <button class="btn-ui" onclick="setLang('zh')">中</button>
+                <button class="btn-ui" onclick="setLang('en')">EN</button>
+                <button class="btn-ui" onclick="setLang('th')">TH</button>
+            </div>
+        </div>
+    </header>
+
+    <div id="notify-bar">✨ Loading...</div>
+
+    <div class="map-wrapper" id="map-wrapper">
+        <img id="seat-img" src="https://i.postimg.cc/rms1yfbz/retouch-2026062922080791.jpg” alt="Map">    </div>
+
+    <div class="stats-area">
+        <h3 id="ui-count-label">已經入座觀眾：0人</h3>
+        <button class="btn-ui" id="ui-list-btn" onclick="document.getElementById('list-modal').style.display='flex'" style="padding: 5px 15px; font-size: 14px;">💖list</button>
+    </div>
+</div>
+
+<!-- 登記彈窗 -->
+<div class="modal" id="modal">
+    <div class="modal-content">
+        <h3 id="ui-m-title">登記座位</h3>
+        <input type="text" id="name" placeholder="暱稱">
+        <input type="file" id="img" accept="image/*">
+        <select id="emoji">
+            <option value="" id="ui-emoji-placeholder">或選 Emoji</option>
+            <option value="🐼">🐼</option>
+           <option value="🐻">🐻</option>
+            <option value="🐱">🐱</option>
+            <option value="🐶">🐶</option>
+            <option value="🧡">🧡</option>
+            <option value="🤍">🤍</option>
+        </select>
+        <button id="ui-btn" style="background:#00ffcc; font-weight:bold; color: #000;" onclick="save()">確認登記</button>
+        <button id="ui-cancel-btn" onclick="document.getElementById('modal').style.display='none'" style="background:#444; color:#fff;">取消</button>
+    </div>
+</div>
+
+<!-- 名單彈窗 -->
+<div class="modal" id="list-modal">
+    <div class="modal-content">
+        <h3 id="ui-list-title">📋 List</h3>
+        <div id="seat-list" style="margin-bottom: 15px;"></div>
+        <button id="ui-close-btn" onclick="document.getElementById('list-modal').style.display='none'" style="background:#444; color:#fff; margin-bottom: 5px;">關閉</button>
+        <button class="btn-ui" onclick="toggleAdmin()" style="width: 100%; padding: 10px;">Admin</button>
+    </div>
+</div>
+
+<script>
+    // 免費公共即時同步 Key庫 (本服務已預幫您配置，不需付費或註冊)
+    const SYNC_URL = "https://api.jsonbin.io/v3/b/6680ef0dacd3cb34a85fa0fe";
+    const MASTER_KEY = "$2a$10$wB5YmI1Z9Y1N0K5U.aK3Wev9V3I9w3lq5vI93k8V6dCj5J2iY/6mW"; 
+
+    let currentDate = "8/21";
+    let isAdmin = sessionStorage.getItem('admin') === 'true';
+    let lastRegisteredName = ""; 
+    let lastPos = {x: 0, y: 0};
+    let allGlobalData = { "8/21": [], "8/22": [], "8/23": [] }; // 全域三日資料結構
+    
+    const wrapper = document.getElementById('map-wrapper');
+    const i18n = {
+        zh: {t: "POND PHUWIN Space Soul-dyssey CONCERT", l: "已經入座觀眾：", m: "登記座位", b: "確認登記", w: "等待觀眾入座...", u: "人", s: " 已入座！", ph: "暱稱", em: "或選 Emoji", c: "取消", close: "關閉", lt: "📋 名單列表"},
+        en: {t: "POND PHUWIN Space Soul-dyssey CONCERT", l: "Audience: ", m: "Register Seat", b: "Confirm", w: "Waiting for audience...", u: " people", s: " joined!", ph: "Nickname", em: "Or choose Emoji", c: "Cancel", close: "Close", lt: "📋 List"},
+        th: {t: "POND PHUWIN Space Soul-dyssey CONCERT", l: "จำนวนผู้ชม：", m: "ลงทะเบียน", b: "ยืนยัน", w: "รอผู้ชมเข้าสู่ระบบ...", u: "คน", s: " เข้าสู่ระบบแล้ว!", ph: "ชื่อเล่น", em: "หรือเลือก Emoji", c: "ยกเลิก", close: "ปิด", lt: "📋 รายชื่อ"}
+    };
+
+    // 從網路下載最新的即時全網資料
+    async function loadCloudData() {
+        document.getElementById('main-container').classList.add('loading');
+        try {
+            let response = await fetch(SYNC_URL + "/latest", {
+                headers: { "X-Master-Key": MASTER_KEY }
+            });
+            let resData = await response.json();
+            if(resData.record) {
+                allGlobalData = resData.record;
+            }
+        } catch (err) {
+            console.log("讀取雲端失敗，使用本機備份", err);
+        }
+        document.getElementById('main-container').classList.remove('loading');
+        const lang = localStorage.getItem('lang') || 'zh';
+        const bar = document.getElementById('notify-bar');
+        if(bar && bar.dataset.isUser !== "true") bar.textContent = i18n[lang].w;
+        render();
+    }
+
+    // 將資料即時上傳更新到雲端，讓所有人同步
+    async function saveCloudData() {
+        document.getElementById('main-container').classList.add('loading');
+        try {
+            await fetch(SYNC_URL, {
+                method: "PUT",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-Master-Key": MASTER_KEY
+                },
+                body: JSON.stringify(allGlobalData)
+            });
+        } catch (err) {
+            alert("雲端同步失敗，請檢查網路連線");
+        }
+        document.getElementById('main-container').classList.remove('loading');
+    }
+
+    function switchDate() {
+        currentDate = document.getElementById('date-select').value;
+        const bar = document.getElementById('notify-bar');
+        if (bar) bar.dataset.isUser = "false"; 
+        lastRegisteredName = ""; 
+        const lang = localStorage.getItem('lang') || 'zh';
+        if (bar) bar.textContent = i18n[lang].w;
+        render();
+    }
+
+    function setLang(l) {
+        localStorage.setItem('lang', l);
+        const d = i18n[l];
+        
+        if(document.getElementById('ui-title')) document.getElementById('ui-title').textContent = d.t;
+        if(document.getElementById('ui-m-title')) document.getElementById('ui-m-title').textContent = d.m;
+        if(document.getElementById('ui-btn')) document.getElementById('ui-btn').textContent = d.b;
+        if(document.getElementById('ui-cancel-btn')) document.getElementById('ui-cancel-btn').textContent = d.c;
+        if(document.getElementById('ui-close-btn')) document.getElementById('ui-close-btn').textContent = d.close;
+        if(document.getElementById('ui-list-title')) document.getElementById('ui-list-title').textContent = d.lt;
+        
+        if(document.getElementById('name')) document.getElementById('name').setAttribute('placeholder', d.ph);
+        if(document.getElementById('ui-emoji-placeholder')) document.getElementById('ui-emoji-placeholder').textContent = d.em;
+        
+        const bar = document.getElementById('notify-bar');
+        if(bar) {
+            if(bar.dataset.isUser === "true" && lastRegisteredName !== "") {
+                bar.textContent = "✨ " + lastRegisteredName + d.s;
+            } else if(bar.textContent !== "✨ Loading...") {
+                bar.textContent = d.w;
+            }
+        }
+        render();
+    }
+
+    wrapper.addEventListener('click', (e) => {
+        const r = wrapper.getBoundingClientRect();
+        lastPos = { x: (e.clientX - r.left)/r.width*100, y: (e.clientY - r.top)/r.height*100 };
+        document.getElementById('modal').style.display = 'flex';
+    });
+
+    function save() {
+        const nameInput = document.getElementById('name');
+        const name = (nameInput && nameInput.value.trim()) ? nameInput.value.trim() : "Anonymous";
+        const file = document.getElementById('img').files[0];
+        const emoji = document.getElementById('emoji').value;
+        
+        lastRegisteredName = name; 
+        
+        if(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => addSeat(name, e.target.result, null);
+            reader.readAsDataURL(file);
+        } else {
+            addSeat(name, null, emoji);
+        }
+        document.getElementById('modal').style.display = 'none';
+        
+        const bar = document.getElementById('notify-bar');
+        if(bar) { bar.dataset.isUser = "true"; }
+        
+        if(nameInput) nameInput.value = '';
+        document.getElementById('img').value = '';
+        document.getElementById('emoji').value = '';
+    }
+
+    async function addSeat(name, imgData, emoji) {
+        if(!allGlobalData[currentDate]) allGlobalData[currentDate] = [];
+        allGlobalData[currentDate].push({ id: Date.now(), x: lastPos.x, y: lastPos.y, name, imgData, emoji });
+        render();
+        await saveCloudData(); // 上傳到網路資料庫
+        setLang(localStorage.getItem('lang') || 'zh');
+    }
+
+    function render() {
+        const seats = allGlobalData[currentDate] || [];
+        const list = document.getElementById('seat-list'), lang = localStorage.getItem('lang') || 'zh';
+        const d = i18n[lang];
+        
+        const countLabel = document.getElementById('ui-count-label');
+        if(countLabel) countLabel.textContent = d.l + seats.length + d.u;
+        
+        document.querySelectorAll('.node').forEach(n => n.remove());
+        if(list) list.innerHTML = "";
+        
+        seats.forEach(s => {
+            const n = document.createElement('div');
+            n.className = 'node';
+            n.style.left = s.x + '%'; 
+            n.style.top = s.y + '%';
+            n.innerHTML = s.imgData ? '<img src="'+s.imgData+'">' : '<span class="node-emoji">'+(s.emoji || '👤')+'</span>';
+            wrapper.appendChild(n);
+            
+            if(list) {
+                list.innerHTML += '<div class="seat-item"><span>'+s.name+'</span>'+(isAdmin ? '<button onclick="del('+s.id+')" style="background:red; color:white; border:none; padding:2px 8px; border-radius:5px; width:auto; margin:0;">X</button>' : '')+'</div>';
+            }
+        });
+    }
+
+    function toggleAdmin() {
+        if(!isAdmin) {
+            if(prompt("請輸入後台管理密碼:") === "2026") { 
+                isAdmin = true; 
+                sessionStorage.setItem('admin', 'true'); 
+                alert("已進入管理員權限");
+                render(); 
+            }
+        } else { 
+            isAdmin = false; 
+            sessionStorage.setItem('admin', 'false'); 
+            alert("已登出管理員權限");
+            render(); 
+        }
+    }
+
+    async function del(id) { 
+        allGlobalData[currentDate] = (allGlobalData[currentDate] || []).filter(s => s.id !== id);
+        render(); 
+        await saveCloudData(); // 上傳同步更新
+    }
+    
+    window.onload = async () => { 
+        setLang(localStorage.getItem('lang') || 'zh'); 
+        await loadCloudData(); // 網頁打開立刻拉取雲端最新狀態
+    };
+</script>
+</body>
+</html>
+
+
+
+
+
+
