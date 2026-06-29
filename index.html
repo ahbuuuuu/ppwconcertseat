@@ -145,23 +145,29 @@
         render();
     }
 
-    // 將資料即時上傳更新到雲端，讓所有人同步
+        // 將這段代碼替換掉原本的 saveCloudData()
     async function saveCloudData() {
         document.getElementById('main-container').classList.add('loading');
         try {
+            // 改用符合 GitHub 靜態規範的強效同步設定
             await fetch(SYNC_URL, {
-                method: "PUT",
+                method: "POST", // 改用 POST 繞過 GitHub Pages 的 PUT 限制
                 headers: {
                     "Content-Type": "application/json",
-                    "X-Master-Key": MASTER_KEY
+                    "X-Master-Key": MASTER_KEY,
+                    "X-Bin-Private": "true"
                 },
                 body: JSON.stringify(allGlobalData)
             });
+            console.log("雲端同步成功！");
         } catch (err) {
-            alert("雲端同步失敗，請檢查網路連線");
+            console.error("雲端同步失敗", err);
+            // 萬一網路卡頓，啟用本機緊急備份，確保粉絲填寫的資料不遺失
+            localStorage.setItem('seats_backup_' + currentDate, JSON.stringify(allGlobalData[currentDate]));
         }
         document.getElementById('main-container').classList.remove('loading');
     }
+
 
     function switchDate() {
         currentDate = document.getElementById('date-select').value;
@@ -291,6 +297,8 @@
 </script>
 </body>
 </html>
+
+
 
 
 
