@@ -75,7 +75,6 @@
     </div>
 </div>
 
-<!-- 登記彈窗 -->
 <div class="modal" id="modal">
     <div class="modal-content">
         <h3 id="ui-m-title">登記座位</h3>
@@ -89,25 +88,29 @@
            <option value="🐶">🐶</option>
             <option value="🧡">🧡</option>
            <option value="🤍">🤍</option>
-
         </select>
         <button id="ui-btn" style="background:#00ffcc; font-weight:bold; color: #000;" onclick="save()">確認登記</button>
         <button id="ui-cancel-btn" onclick="document.getElementById('modal').style.display='none'" style="background:#444; color:#fff;">取消</button>
     </div>
 </div>
 
-<!-- 名單彈窗 (按鈕已確實鎖定在此彈窗內) -->
 <div class="modal" id="list-modal">
     <div class="modal-content">
-        <h3 id="ui-list-title">💖 List</h3>
+        <h3 id="ui-list-title">📋 List</h3>
         <div id="seat-list" style="margin-bottom: 15px;"></div>
         <button id="ui-close-btn" onclick="document.getElementById('list-modal').style.display='none'" style="background:#444; color:#fff; margin-bottom: 5px;">關閉</button>
         <button class="btn-ui" onclick="toggleAdmin()" style="width: 100%; padding: 10px;">Admin</button>
     </div>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
 <script>
-        const GAS_URL = "https://script.google.com/macros/s/AKfycbxUrIsZeWX9RMhjr8YLkqbEg6Nw3tjEvjMq_Up7vkSZ8QerJ-aPkRyVXW_faqno-gOFag/exec";
+    // 幫你配置完成的專用即時資料同步庫通道
+    const firebaseConfig = { databaseURL: "https://ppw-concert-2026-default-rtdb.firebaseio.com/" };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database().ref("seats_data");
 
     let currentDate = "8/21";
     let isAdmin = sessionStorage.getItem('admin') === 'true';
@@ -119,53 +122,37 @@
     const i18n = {
         zh: {t: "POND PHUWIN Space Soul-dyssey CONCERT", l: "已經入座觀眾：", m: "登記座位", b: "確認登記", w: "等待觀眾入座...", u: "人", s: " 已入座！", ph: "暱稱", em: "或選 Emoji", c: "取消", close: "關閉", lt: "📋 名單列表"},
         en: {t: "POND PHUWIN Space Soul-dyssey CONCERT", l: "Audience: ", m: "Register Seat", b: "Confirm", w: "Waiting for audience...", u: " people", s: " joined!", ph: "Nickname", em: "Or choose Emoji", c: "Cancel", close: "Close", lt: "📋 List"},
-        th: {t: "POND PHUWIN Space Soul-dyssey CONCERT", l: "จำนวนผู้ชม：", m: "ลงทะเบียน", b: "ยืนยัน", w: "รอผู้ชมเข้าสู่ระบบ...", u: "คน", s: " เข้าสู่ระบบแล้ว!", ph: "ชื่อเล่น", em: "หรือเลือก Emoji", c: "ยกเลิก", close: "ปิด", lt: "💖 รายชื่อ"}
+        th: {t: "POND PHUWIN Space Soul-dyssey CONCERT", l: "จำนวนผู้ชม：", m: "ลงทะเบียน", b: "ยืนยัน", w: "รอผู้ชมเข้าสู่ระบบ...", u: "คน", s: " เข้าสู่ระบบแล้ว!", ph: "ชื่อเล่น", em: "หรือเลือก Emoji", c: "ยกเลิก", close: "ปิด", lt: "📋 รายชื่อ"}
     };
 
-    async function loadCloudData() {
-    if(GAS_URL === "https://script.google.com/macros/s/AKfycbxUrIsZeWX9RMhjr8YLkqbEg6Nw3tjEvjMq_Up7vkSZ8QerJ-aPkRyVXW_faqno-gOFag/exec") return;
-    document.getElementById('main-container').classList.add('loading');
-    try {
-        // 核心修改：網址後面加上 ?action=read
-        let response = await fetch(GAS_URL + "?action=read");
-        if (response.ok) {
-            let text = await response.text();
-            if(text && text.trim() !== "") {
-                allGlobalData = JSON.parse(text);
+    // Firebase 終極大絕招：全自動監聽。任何人只要一點，全網所有人「不需要重整」直接同步出現！
+    function initFirebaseSync() {
+        document.getElementById('main-container').classList.add('loading');
+        db.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                allGlobalData = data;
             }
-        }
-    } catch (err) {
-        console.log("讀取雲端失敗", err);
-    }
-    document.getElementById('main-container').classList.remove('loading');
-    const lang = localStorage.getItem('lang') || 'zh';
-    const bar = document.getElementById('notify-bar');
-    if(bar && bar.dataset.isUser !== "true") bar.textContent = i18n[lang].w;
-    render();
-}
-
-async function saveCloudData() {
-    document.getElementById('main-container').classList.add('loading');
-    try {
-        // 核心修改：加上 mode: "no-cors" 與 text/plain，直接衝破 Google 阻擋
-        await fetch(GAS_URL, {
-            method: "POST",
-            mode: "no-cors", 
-            headers: { "Content-Type": "text/plain" },
-            body: JSON.stringify(allGlobalData)
+            document.getElementById('main-container').classList.remove('loading');
+            const lang = localStorage.getItem('lang') || 'zh';
+            const bar = document.getElementById('notify-bar');
+            if(bar && bar.dataset.isUser !== "true") bar.textContent = i18n[lang].w;
+            render();
         });
-        console.log("資料已成功送往 Google 雲端庫！");
-    } catch (err) {
-        console.error("雲端同步失敗", err);
     }
-    // 延遲 800 毫秒重新讀取雲端，強迫畫面刷新對齊
-    setTimeout(async () => {
-        document.getElementById('main-container').classList.remove('loading');
-        await loadCloudData();
-    }, 800);
-}
 
-        function switchDate() {
+    async function saveCloudData() {
+        document.getElementById('main-container').classList.add('loading');
+        try {
+            await db.set(allGlobalData);
+            console.log("Firebase 即時同步成功！");
+        } catch (err) {
+            console.error("同步失敗", err);
+        }
+        document.getElementById('main-container').classList.remove('loading');
+    }
+
+    function switchDate() {
         currentDate = document.getElementById('date-select').value;
         const bar = document.getElementById('notify-bar');
         if (bar) bar.dataset.isUser = "false"; 
@@ -232,12 +219,6 @@ async function saveCloudData() {
     }
 
     async function addSeat(name, imgData, emoji) {
-        // 寫入前先更新最新全域資料，避免多人同時填寫時覆蓋彼此
-        try {
-            let res = await fetch(GAS_URL);
-            if (res.ok) allGlobalData = await res.json();
-        } catch(e){}
-
         if(!allGlobalData[currentDate]) allGlobalData[currentDate] = [];
         allGlobalData[currentDate].push({ id: Date.now(), x: lastPos.x, y: lastPos.y, name, imgData, emoji });
         render();
@@ -294,11 +275,10 @@ async function saveCloudData() {
     
     window.onload = async () => { 
         setLang(localStorage.getItem('lang') || 'zh'); 
-        await loadCloudData(); 
+        initFirebaseSync(); // 啟動終極即時同步
     };
 </script>
 </body>
 </html>
-
 
 
